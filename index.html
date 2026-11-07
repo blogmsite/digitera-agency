@@ -97,7 +97,7 @@
 <div class="mg-scene mg-c"><div class="mg-kicker">The result</div><svg width="230" height="120" viewBox="0 0 230 120" style="margin:8px auto 0;display:block" aria-hidden="true"><path class="mg-arrow" d="M14 104 C 70 96, 120 74, 168 38 C 186 24, 200 16, 216 10" fill="none" stroke="#2563EB" stroke-width="10" stroke-linecap="round"/><path d="M192 6 L222 8 L212 34 C 204 24 197 14 192 6Z" fill="#E14BD8"/></svg><p class="mg-big" style="margin-top:2px">You relax.<br/><span class="hl">We</span> <span class="hl2">grow</span> it.</p><span class="mg-cta">Request a Scoped Quote →</span></div>
 <div class="mg-progress" aria-hidden="true"><i></i></div>
 </div>
-<button type="button" id="mgPlayBtn" class="mg-playbtn" aria-label="Play the phone video with sound"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="#fff"/></svg>Tap to play with sound</button>
+<button type="button" id="mgPlayBtn" class="mg-playbtn show" aria-label="Play the phone video with sound"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="#fff"/></svg>Tap to play with sound</button>
 </div>
 <audio id="voAudio" src="assets/voiceover.mp3" preload="auto" playsinline></audio>
 </div>
@@ -663,7 +663,7 @@ function sendBrief(e){
       mgScreen.classList.remove('playing');
       scA.classList.remove('scene-on'); scB.classList.remove('scene-on'); scC.classList.add('scene-on');
       if(mgProg) mgProg.style.width='100%';
-      mgHideBtn();
+      mgShowBtn();
     }
     function mgShowBtn(){ if(mgPlayBtn) mgPlayBtn.classList.add('show'); }
     function mgHideBtn(){ if(mgPlayBtn) mgPlayBtn.classList.remove('show'); }
@@ -683,9 +683,24 @@ function sendBrief(e){
       } else { mgPlayPending=false; mgUnlocked=true; audioDriven=true; mgHideBtn(); }
     }
     function mgUnlockStart(){
-      if(!mgInView||audioDriven||mgPlayPending) return;
+      if(audioDriven||mgPlayPending) return;
+      /* A tap on the button or the phone is a deliberate play request:
+         start even if the scroll observer has not flagged the section
+         as in view yet (on a small phone screen the tall section may
+         never reach the observer threshold while the phone itself is
+         plainly on screen and tappable). */
+      var mgWasPlaying=mgScreen.classList.contains('playing');
+      mgInView=true;
       if(mgDone){
+        /* Finished: a tap replays the whole video from the beginning. */
         mgReset(); mgDone=false;
+        picStart=performance.now();
+        mgScreen.classList.add('playing');
+        cancelAnimationFrame(mgRaf); mgRaf=requestAnimationFrame(mgLoop);
+        mgStartAudio(0);
+      } else if(!mgWasPlaying){
+        /* Pictures have not started yet: start the whole video from 0. */
+        mgReset();
         picStart=performance.now();
         mgScreen.classList.add('playing');
         cancelAnimationFrame(mgRaf); mgRaf=requestAnimationFrame(mgLoop);
@@ -736,6 +751,8 @@ function sendBrief(e){
       evs.forEach(function(ev){window.addEventListener(ev,go,{passive:true});});
     }
     if(mgPlayBtn) mgPlayBtn.addEventListener('click',function(){ mgUnlockStart(); });
+    var mgPhoneEl=mgScreen.parentNode;
+    if(mgPhoneEl) mgPhoneEl.addEventListener('click',function(){ mgUnlockStart(); });
     vo.addEventListener('ended',function(){ if(mgInView) mgFinish(); });
     document.addEventListener('visibilitychange',function(){
       if(document.hidden){ if(mgInView){cancelAnimationFrame(mgRaf); vo.pause(); mgScreen.classList.remove('playing'); mgHideBtn();} }
@@ -745,7 +762,7 @@ function sendBrief(e){
       var mgIO=new IntersectionObserver(function(es){es.forEach(function(e){
         if(e.isIntersecting){ mgInView=true; mgStart(); }
         else { mgInView=false; mgStop(); }
-      })},{threshold:.35});
+      })},{threshold:.1});
       mgIO.observe(showcase);
     }
     mgReset();
